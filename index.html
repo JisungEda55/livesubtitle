@@ -32,21 +32,27 @@
       background: rgba(0, 0, 0, 0);
       border-radius: 10px;
       padding: 15px;
-      transition: opacity 0.5s ease-in-out;
+      transition: opacity 1s ease, transform 1s ease;
     }
     #subtitle-container.hidden {
       opacity: 0;
+      transform: translateY(-20px);
     }
     #subtitle {
       font-size: 2.7rem;
       color: #ffffff;
       font-family: 'MBC1961M';
       text-shadow: 
-    1px 1px 3px #000, 
-    -1px -1px 3px #000, 
-    -1px 1px 3px #000, 
-    1px -1px 3px #000; /* 검은색 테두리 효과 */
-}
+        1px 1px 3px #000, 
+        -1px -1px 3px #000, 
+        -1px 1px 3px #000, 
+        1px -1px 3px #000; /* 검은색 테두리 효과 */
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2; /* 최대 2줄 설정 */
+      -webkit-box-orient: vertical;
+      transition: color 1s ease;
+    }
     .button-container {
       margin-top: 20px;
       display: flex;
@@ -61,6 +67,10 @@
       font-family: 'MBC1961M';
       border: none;
       border-radius: 5px;
+      transition: background-color 0.5s ease;
+    }
+    .button-container button:hover {
+      background-color: #0056b3;
     }
     #log {
       width: 80%;
@@ -72,16 +82,18 @@
       font-family: 'MBC1961M';
       color: #fff;
       font-size: 1rem;
+      transition: background 0.5s ease;
     }
     #log p {
       margin: 5px 0;
       font-family: 'MBC1961M';
+      transition: color 0.5s ease;
     }
   </style>
 </head>
 <body>
   <div id="subtitle-container">
-    <p id="subtitle">자막이 이곳에 표시됩니다..</p>
+    <p id="subtitle">자막이 이곳에 표시됩니다.</p>
   </div>
   <div id="log"></div>
   <div class="button-container">
@@ -172,38 +184,45 @@
     });
 
     recognition.onresult = (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
+  let interimTranscript = '';
+  let finalTranscript = '';
 
-      for (let i = 0; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript;
-        } else {
-          interimTranscript += result[0].transcript;
-        }
-      }
+  for (let i = 0; i < event.results.length; i++) {
+    const result = event.results[i];
+    if (result.isFinal) {
+      finalTranscript += result[0].transcript;
+    } else {
+      interimTranscript += result[0].transcript;
+    }
+  }
 
-      // 자막에 현재 입력 중인 음성만 표시
-      const subtitleContainer = document.getElementById('subtitle-container');
-      document.getElementById('subtitle').innerText = interimTranscript;
-      subtitleContainer.classList.remove('hidden');
+  // 자막 처리
+  const subtitleContainer = document.getElementById('subtitle-container');
+  const subtitleElement = document.getElementById('subtitle');
 
-      // 자막이 사라지도록 타이머 설정
-      clearTimeout(subtitleTimeout);
-      subtitleTimeout = setTimeout(() => {
-        subtitleContainer.classList.add('hidden');
-      }, 3000); // 3초 후 사라짐
+  // 새 문장이 시작된 경우 기존 자막을 초과하는 부분만 표시
+  const maxLines = 2; // 최대 두 줄
+  const words = interimTranscript.split(' ');
+  const displayedWords = words.slice(-maxLines * 10); // 대략 한 줄당 10단어 기준
+  subtitleElement.innerText = displayedWords.join(' ');
 
-      // 로그에 최종 결과 중 새로운 부분만 추가
-      if (finalTranscript) {
-        const newTranscript = finalTranscript.replace(lastFinalTranscript, '').trim(); // 기존 결과 제거
-        if (newTranscript) {
-          updateLog(newTranscript); // 새로운 부분만 로그에 추가
-        }
-        lastFinalTranscript = finalTranscript; // 최종 결과 업데이트
-      }
-    };
+  subtitleContainer.classList.remove('hidden');
+
+   // 자막이 사라지도록 타이머 설정
+   clearTimeout(subtitleTimeout);
+  subtitleTimeout = setTimeout(() => {
+    subtitleContainer.classList.add('hidden');
+  }, 5000); // 5초 후 사라짐
+
+  // 로그에 최종 결과 누적 저장
+  if (finalTranscript) {
+    const newTranscript = finalTranscript.replace(lastFinalTranscript, '').trim();
+    if (newTranscript) {
+      updateLog(newTranscript);
+    }
+    lastFinalTranscript = finalTranscript;
+  }
+};
 
     // 에러 처리
     recognition.onerror = (event) => {

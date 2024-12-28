@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Streaming Subtitles</title>
+  <style>
+    @font-face {
+      font-family: 'MBC1961M';
+      src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-01@1.0/MBC1961M.woff2') format('woff2');
+      font-weight: normal;
+      font-style: normal;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #00ff00;
+      color: white;
+      font-family: 'MBC1961M';
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    #subtitle-container {
+      position: fixed;
+      top: 10%;
+      width: 70%;
+      text-align: center;
+      font-family: 'MBC1961M';
+      background: rgba(0, 0, 0, 0);
+      border-radius: 10px;
+      padding: 15px;
+      transition: opacity 0.5s ease-in-out;
+    }
+    #subtitle-container.hidden {
+      opacity: 0;
+    }
+    #subtitle {
+      font-size: 2.7rem;
+      color: #ffffff;
+      font-family: 'MBC1961M';
+      text-shadow: 
+    1px 1px 3px #000, 
+    -1px -1px 3px #000, 
+    -1px 1px 3px #000, 
+    1px -1px 3px #000; /* 검은색 테두리 효과 */
+}
+    .button-container {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+    .button-container button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+      background: #007bff;
+      color: white;
+      font-family: 'MBC1961M';
+      border: none;
+      border-radius: 5px;
+    }
+    #log {
+      width: 80%;
+      max-height: 30%;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      padding: 10px;
+      font-family: 'MBC1961M';
+      color: #fff;
+      font-size: 1rem;
+    }
+    #log p {
+      margin: 5px 0;
+      font-family: 'MBC1961M';
+    }
+  </style>
+</head>
+<body>
+  <div id="subtitle-container">
+    <p id="subtitle">자막이 이곳에 표시됩니다..</p>
+  </div>
+  <div id="log"></div>
+  <div class="button-container">
+    <button id="language-btn">Switch to English</button>
+    <button id="start-btn">Start Listening</button>
+    <button id="download-btn">Download Log</button>
+  </div>
+
+  <script>
+    // 음성 인식 객체 생성
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+
+    // 언어 설정 초기값 (한국어)
+    let currentLanguage = 'ko-KR';
+    recognition.lang = currentLanguage;
+    recognition.continuous = true; // 연속 듣기 활성화
+    recognition.interimResults = true; // 즉시 텍스트화 활성화
+
+    // 음성 인식 시작 상태
+    let isListening = false;
+    let lastFinalTranscript = '';
+    let subtitleTimeout;
+
+    // 로그 첫 번째 줄에 날짜 추가
+    const initializeLogWithDate = () => {
+      const log = document.getElementById('log');
+      const dateEntry = document.createElement('p');
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+      dateEntry.innerText = `Log Date: ${today}`;
+      dateEntry.style.fontWeight = 'bold';
+      log.appendChild(dateEntry);
+    };
+
+    // 로그를 업데이트하는 함수
+    const updateLog = (text) => {
+      const log = document.getElementById('log');
+      const entry = document.createElement('p');
+      const timestamp = new Date().toTimeString().split(' ')[0]; // HH:MM:SS 형식
+      entry.innerText = `[${timestamp}] ${text}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight; // 자동 스크롤
+    };
+
+    // 로그 다운로드 함수
+    const downloadLog = () => {
+      const log = document.getElementById('log');
+      let logText = '';
+      log.querySelectorAll('p').forEach((p) => {
+        logText += p.innerText + '\n';
+      });
+
+      const blob = new Blob([logText], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'speech_log.txt';
+      link.click();
+    };
+
+    // 언어 전환 버튼 이벤트
+    document.getElementById('language-btn').addEventListener('click', () => {
+      if (currentLanguage === 'ko-KR') {
+        currentLanguage = 'en-US';
+        document.getElementById('language-btn').innerText = 'Switch to Korean';
+      } else {
+        currentLanguage = 'ko-KR';
+        document.getElementById('language-btn').innerText = 'Switch to English';
+      }
+      recognition.lang = currentLanguage;
+    });
+
+    // 다운로드 버튼 이벤트
+    document.getElementById('download-btn').addEventListener('click', downloadLog);
+
+    // 버튼 클릭 이벤트로 음성 인식 제어
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (!isListening) {
+        if (!document.getElementById('log').hasChildNodes()) {
+          initializeLogWithDate();
+        }
+        recognition.start();
+        document.getElementById('start-btn').innerText = 'Listening...';
+        isListening = true;
+      } else {
+        recognition.stop();
+        document.getElementById('start-btn').innerText = 'Start Listening';
+        isListening = false;
+      }
+    });
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript;
+        } else {
+          interimTranscript += result[0].transcript;
+        }
+      }
+
+      // 자막에 현재 입력 중인 음성만 표시
+      const subtitleContainer = document.getElementById('subtitle-container');
+      document.getElementById('subtitle').innerText = interimTranscript;
+      subtitleContainer.classList.remove('hidden');
+
+      // 자막이 사라지도록 타이머 설정
+      clearTimeout(subtitleTimeout);
+      subtitleTimeout = setTimeout(() => {
+        subtitleContainer.classList.add('hidden');
+      }, 3000); // 3초 후 사라짐
+
+      // 로그에 최종 결과 중 새로운 부분만 추가
+      if (finalTranscript) {
+        const newTranscript = finalTranscript.replace(lastFinalTranscript, '').trim(); // 기존 결과 제거
+        if (newTranscript) {
+          updateLog(newTranscript); // 새로운 부분만 로그에 추가
+        }
+        lastFinalTranscript = finalTranscript; // 최종 결과 업데이트
+      }
+    };
+
+    // 에러 처리
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      document.getElementById('subtitle').innerText = 'Error: Unable to process speech.';
+      updateLog(`Error: ${event.error}`);
+    };
+
+    // 음성 인식 종료 이벤트
+    recognition.onend = () => {
+      if (isListening) {
+        recognition.start(); // 계속 듣기
+      }
+    };
+  </script>
+</body>
+</html>

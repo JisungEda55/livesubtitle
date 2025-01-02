@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Notepad</title>
+    <style>
+        @font-face {
+            font-family: 'MBC1961M';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-01@1.0/MBC1961M.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'ONE-Mobile-POP';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2105_2@1.0/ONE-Mobile-POP.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Paperlogy-8ExtraBold';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2') format('woff2');
+            font-weight: 800;
+            font-style: normal;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+            position: relative;
+        }
+
+        textarea {
+            width: 95%;
+            height: 80%;
+            border: 1px solid #ccc;
+            border-radius: 16px;
+            padding: 10px;
+            font-size: 38px;
+            font-family: 'ONE-Mobile-POP';
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            resize: none;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .mic-button, .lang-button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 18px;
+            font-family: 'MBC1961M';
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+        }
+
+        .mic-button:hover, .lang-button:hover {
+            background-color: #0056b3;
+        }
+
+        .mic-animation {
+            display: none;
+            gap: 3px;
+        }
+
+        .mic-button.listening .mic-animation {
+            display: flex;
+        }
+
+        .mic-button .mic-placeholder {
+            font-size: 20px;
+            color: white;
+        }
+
+        .mic-button.listening .mic-placeholder {
+            display: none;
+        }
+
+        .bar {
+            width: 5px;
+            height: 20px;
+            background-color: white;
+            animation: bounce 1s infinite;
+        }
+
+        .bar:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .bar:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .bar:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        .bar:nth-child(4) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                height: 20px;
+            }
+            50% {
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <textarea placeholder="Type your notes here..." id="text-area"></textarea>
+    <div class="controls">
+        <button class="lang-button" id="lang-button">KO</button>
+        <button class="mic-button" id="mic-button">
+            <div class="mic-placeholder">O</div>
+            <div class="mic-animation">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+        </button>
+    </div>
+
+    <script>
+        const textarea = document.getElementById('text-area');
+        const micButton = document.getElementById('mic-button');
+        const langButton = document.getElementById('lang-button');
+
+        let recognition;
+        let finalTranscript = ''; // Track final results
+        let lastResultIndex = 0; // Track last processed result
+        let currentLanguage = 'ko-KR'; // Default language set to Korean
+
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = currentLanguage;
+
+            micButton.addEventListener('click', () => {
+                if (micButton.classList.contains('listening')) {
+                    recognition.stop();
+                    micButton.classList.remove('listening');
+                } else {
+                    recognition.start();
+                    micButton.classList.add('listening');
+                }
+            });
+
+            langButton.addEventListener('click', () => {
+                currentLanguage = currentLanguage === 'ko-KR' ? 'en-US' : 'ko-KR';
+                recognition.lang = currentLanguage;
+                langButton.textContent = currentLanguage === 'ko-KR' ? 'KO' : 'EN';
+            });
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+
+                for (let i = lastResultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    if (result.isFinal) {
+                        finalTranscript += result[0].transcript + ' ';
+                        lastResultIndex = i + 1;
+                    } else {
+                        interimTranscript += result[0].transcript;
+                    }
+                }
+
+                textarea.value = finalTranscript.trim() + ' ' + interimTranscript.trim();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                micButton.classList.remove('listening');
+            };
+        } else {
+            micButton.disabled = true;
+            langButton.disabled = true;
+            alert('Speech recognition is not supported in this browser.');
+        }
+    </script>
+</body>
+</html>
